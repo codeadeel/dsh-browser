@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Typecheck and tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.28.5
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install Chrome for Testing
+        run: |
+          mkdir -p /opt/chrome-for-testing/chrome/linux-156.0.8078.47/chrome-linux64
+          curl -fsSL -o /tmp/chrome-linux64.zip \
+            "https://storage.googleapis.com/chrome-for-testing-public/156.0.8078.47/linux64/chrome-linux64.zip"
+          unzip -q -o /tmp/chrome-linux64.zip -d /tmp/chrome-linux64
+          mv /tmp/chrome-linux64/chrome-linux64/* /opt/chrome-for-testing/chrome/linux-156.0.8078.47/chrome-linux64/
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends \
+            libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0 \
+            libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libasound2 \
+            libpango-1.0-0 libcairo2 libx11-6 libxcb1 libxext6 fonts-liberation
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm test
+
+  # Build-only: validates every Dockerfile target on each push/PR. No
+  # registry — `docker compose up -d --build` is the install path.
+  docker:
+    name: Images (build check)
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: [search, browser, brave-mcp, dsh]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          target: ${{ matrix.target }}
+          push: false
+          cache-from: type=gha,scope=${{ matrix.target }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.target }}

@@ -1,0 +1,9 @@
+- insert:
+    - id: mcp-search
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: search
+        transport: streamable-http
+        url: !!js "process.env.DSH_SEARCH_MCP_URL ?? ((process.env.DSH_ORIGIN ?? 'http://127.0.0.1:' + (process.env.DSH_PORT ?? '3090')) + '/dsh-browser/search/mcp' + (process.env.DSH_SEARCH_MCP_KEY ? '?key=' + process.env.DSH_SEARCH_MCP_KEY : ''))"
+        toolCallTimeoutMs: 60000
+        failOnStartupError: false

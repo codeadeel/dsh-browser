@@ -1,0 +1,129 @@
+# One compose file, one Dockerfile (multi-target). Everything builds from
+# source; the only host ports are loopback (8787/8790/8791) plus the DSH web
+# port when the `web` profile is enabled.
+#
+#   docker compose up -d --build           searxng + brave-mcp + gateway + browser
+#   docker compose --profile web up -d     + DSH web container
+#   docker compose --profile extra up -d   + optional Playwright MCP
+#
+# Keys go in .env (BRAVE_API_KEY, GOOGLE_GEMINI_API_KEY, ...).
+
+name: dsh-browser
+
+services:
+  searxng:
+    image: searxng/searxng:latest
+    restart: unless-stopped
+    environment:
+      SEARXNG_BASE_URL: http://searxng:8080/
+      SEARXNG_SECRET: ${SEARXNG_SECRET:-dsh-search-local-change-this-secret-key}
+    volumes:
+      - ./deploy/searxng:/etc/searxng:rw
+    networks:
+      - dsh
+
+  brave-mcp:
+    # Official Brave Search MCP server; idles with a message until
+    # BRAVE_API_KEY is set in .env.
+    build: { context: ., dockerfile: Dockerfile, target: brave-mcp }
+    restart: unless-stopped
+    environment:
+      BRAVE_API_KEY: ${BRAVE_API_KEY:-}
+      BRAVE_API_KEY_FILE: ${BRAVE_API_KEY_FILE:-}
+      BRAVE_MCP_TRANSPORT: http
+      BRAVE_MCP_HOST: 0.0.0.0
+      BRAVE_MCP_PORT: "8000"
+      BRAVE_MCP_STATELESS: "true"
+    networks:
+      - dsh
+
+  search-gateway:
+    build: { context: ., dockerfile: Dockerfile, target: search }
+    restart: unless-stopped
+    environment:
+      SEARCH_HOST: 0.0.0.0
+      SEARCH_PORT: 8787
+      SEARCH_CONFIG_PATH: /data/search-config.json
+      SEARCH_PROVIDER: ${SEARCH_PROVIDER:-auto}
+      SEARXNG_URL: http://searxng:8080
+      BRAVE_MCP_URL: http://brave-mcp:8000
+      BRAVE_API_KEY: ${BRAVE_API_KEY:-}
+      GOOGLE_CSE_API_KEY: ${GOOGLE_CSE_API_KEY:-}
+      GOOGLE_CSE_CX: ${GOOGLE_CSE_CX:-}
+      GOOGLE_GEMINI_API_KEY: ${GOOGLE_GEMINI_API_KEY:-}
+      GOOGLE_GEMINI_MODEL: ${GOOGLE_GEMINI_MODEL:-gemini-3.8-flash}
+      GOOGLE_VERTEX_API_KEY: ${GOOGLE_VERTEX_API_KEY:-}
+      GOOGLE_VERTEX_PROJECT_ID: ${GOOGLE_VERTEX_PROJECT_ID:-}
+      GOOGLE_VERTEX_ENGINE_ID: ${GOOGLE_VERTEX_ENGINE_ID:-}
+      SEARCH_MAX_RESULTS: ${SEARCH_MAX_RESULTS:-8}
+    ports:
+      # One published port: /mcp /config /test /health
+      - "127.0.0.1:8787:8787"
+    volumes:
+      - ./data:/data
+    depends_on:
+      - searxng
+    networks:
+      - dsh
+
+  browser:
+    build: { context: ., dockerfile: Dockerfile, target: browser }
+    restart: unless-stopped
+    environment:
+      BROWSER_HOST: 0.0.0.0
+      BROWSER_PORT: 8790
+      BROWSER_VIEWER_HOST: 0.0.0.0
+      BROWSER_VIEWER_PORT: 8791
+      BROWSER_HEADLESS: ${BROWSER_HEADLESS:-true}
+      BROWSER_IDLE_TIMEOUT_MS: ${BROWSER_IDLE_TIMEOUT_MS:-1800000}
+    ports:
+      # Loopback-only; the DSH host proxies both.
+      - "127.0.0.1:8790:8790"
+      - "127.0.0.1:8791:8791"
+    volumes:
+      - ./data:/data
+    networks:
+      - dsh
+
+  dsh:
+    build: { context: ., dockerfile: Dockerfile, target: dsh }
+    restart: unless-stopped
+    profiles: ["web"] # optional; DSH can also run on the host
+    environment:
+      DSH_HOST: 0.0.0.0
+      DSH_PORT: 3000
+      DSH_HOME: /dsh-home
+      DSH_PUBLIC_URL: ${DSH_PUBLIC_URL:-http://localhost:3000/}
+      DSH_TRUSTED_HOST: ${DSH_TRUSTED_HOST:-localhost}
+      DSH_BROWSER_API_URL: http://browser:8790
+      DSH_BROWSER_VIEWER_URL: http://browser:8791
+      DSH_SEARCH_URL: http://search-gateway:8787
+    ports:
+      - "${DSH_PORT:-3000}:3000"
+    volumes:
+      - dsh-home:/dsh-home
+      - ./config/dsh-home.patch.yml:/dsh-home/cordis.patch.yml:ro
+      - ./config/dsh-search.patch.yml:/dsh-home/profiles/web/dsh-search.patch.yml:ro
+    depends_on:
+      - browser
+      - search-gateway
+    networks:
+      - dsh
+
+  playwright-mcp:
+    # Official Microsoft Playwright MCP — optional extra, does not replace the
+    # browser service (which provides the shared live screencast).
+    image: mcr.microsoft.com/playwright/mcp:latest
+    profiles: ["extra"]
+    restart: unless-stopped
+    command: ["--port", "8931", "--host", "0.0.0.0"]
+    ports:
+      - "127.0.0.1:8931:8931"
+    networks:
+      - dsh
+
+networks:
+  dsh:
+
+volumes:
+  dsh-home:

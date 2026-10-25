@@ -1,0 +1,9 @@
+node_modules/
+dist/
+artifacts/
+data/
+.env
+*.log
+.DS_Store
+config/dsh-browser.generated.yml
+.env.search

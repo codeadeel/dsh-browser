@@ -1,0 +1,41 @@
+{
+  "name": "dsh-browser-panel",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Live browser panel for DeepSeek Harness: shared per-session Chromium with a CDP screencast, ranked search providers, and a single-port search gateway bridge",
+  "license": "MIT",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "dependencies": {
+    "ws": "8.18.3"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-ui-plugin-manager"
+      ],
+      "external": []
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/codeadeel/dsh-browser.git",
+    "directory": "panel"
+  },
+  "homepage": "https://github.com/codeadeel/dsh-browser#readme"
+}

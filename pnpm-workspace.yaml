@@ -1,0 +1,5 @@
+allowBuilds:
+  esbuild: true
+minimumReleaseAgeExclude:
+  - '@puppeteer/browsers@3.2.6'
+  - puppeteer-core@25.16.0

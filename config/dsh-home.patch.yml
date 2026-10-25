@@ -1,0 +1,22 @@
+# Home-level DSH patch for the dsh container (mounted as $DSH_HOME/cordis.patch.yml).
+# Add your model provider and default model here. Example for a custom
+# OpenAI-compatible endpoint:
+
+# - id: llm-custom
+#   name: '@deepseek-ai/dsh-llm-pi-ai'
+#   config:
+#     providers:
+#       my-provider:
+#         displayName: My provider
+#         apiKeyEnv: MY_PROVIDER_API_KEY
+#         api: openai-completions
+#         baseURL: https://api.example.com/v1
+#         models:
+#           - id: my-model
+#             name: my-model
+#
+# - id: agent-default-model
+#   name: '@deepseek-ai/dsh-agent-default-model'
+#   config:
+#     provider: my-provider
+#     model: my-model

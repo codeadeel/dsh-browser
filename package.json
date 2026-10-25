@@ -1,0 +1,38 @@
+{
+  "name": "dsh-browser",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Search gateway and isolated Chromium sessions for DeepSeek Harness",
+  "license": "MIT",
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc -p tsconfig.build.json",
+    "start:search": "tsx src/search-server.ts",
+    "start:browser": "tsx src/browser-server.ts",
+    "mcp-call": "tsx src/tester/mcp-call.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.1",
+    "cheerio": "1.2.0",
+    "puppeteer-core": "25.16.0",
+    "ws": "8.18.3",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "@types/ws": "8.18.2",
+    "tsx": "4.23.15",
+    "typescript": "6.0.3",
+    "vitest": "4.1.12"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/codeadeel/dsh-browser.git"
+  }
+}
