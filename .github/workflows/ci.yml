@@ -30,11 +30,15 @@ jobs:
 
       - name: Install Chrome for Testing
         run: |
-          mkdir -p /opt/chrome-for-testing/chrome/linux-156.0.8078.47/chrome-linux64
+          # The runner user cannot write to /opt, so install under the temp dir
+          # and point the tests at it with CHROME_PATH.
+          CHROME_DIR="$RUNNER_TEMP/chrome-for-testing/chrome/linux-156.0.8078.47/chrome-linux64"
+          mkdir -p "$CHROME_DIR"
           curl -fsSL -o /tmp/chrome-linux64.zip \
             "https://storage.googleapis.com/chrome-for-testing-public/156.0.8078.47/linux64/chrome-linux64.zip"
-          unzip -q -o /tmp/chrome-linux64.zip -d /tmp/chrome-linux64
-          mv /tmp/chrome-linux64/chrome-linux64/* /opt/chrome-for-testing/chrome/linux-156.0.8078.47/chrome-linux64/
+          unzip -q -o /tmp/chrome-linux64.zip -d "$RUNNER_TEMP/chrome-unzip"
+          mv "$RUNNER_TEMP/chrome-unzip/chrome-linux64/"* "$CHROME_DIR/"
+          echo "CHROME_PATH=$CHROME_DIR/chrome" >> "$GITHUB_ENV"
           sudo apt-get update && sudo apt-get install -y --no-install-recommends \
             libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0 \
             libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libasound2 \
@@ -44,14 +48,16 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
 
-  # Build-only: validates every Dockerfile target on each push/PR. No
-  # registry — `docker compose up -d --build` is the install path.
+  # Build-only: validates the service images on each push/PR. No registry and
+  # no cache export — `docker compose up -d --build` is the install path.
+  # The optional DSH container (--profile web) is intentionally not built here;
+  # it is the heaviest image and not needed for the plugin itself.
   docker:
     name: Images (build check)
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        target: [search, browser, brave-mcp, dsh]
+        target: [search, browser, brave-mcp]
     steps:
       - uses: actions/checkout@v4
 
@@ -63,5 +69,3 @@ jobs:
           file: Dockerfile
           target: ${{ matrix.target }}
           push: false
-          cache-from: type=gha,scope=${{ matrix.target }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.target }}
