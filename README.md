@@ -9,8 +9,8 @@ Give your DeepSeek Harness agent a real browser — and watch it work.
 
 A live Chromium for every DSH session: the agent drives it, you watch it in a
 panel inside the UI, and you can take over with your own mouse and keyboard at
-any time. Backed by a ranked search gateway (SearXNG, Gemini, Brave, Vertex,
-DuckDuckGo) with whole-web Google results.
+any time. Backed by a ranked search gateway (SearXNG, Google CSE, Gemini, Brave,
+Vertex, DuckDuckGo) with whole-web Google results.
 
 <a href="docs/demo/dsh-browser-demo.mp4"><img src="docs/demo/preview.gif" width="100%" alt="dsh-browser demo — agent search, live panel, human takeover"></a>
 
@@ -49,7 +49,8 @@ flowchart LR
   the rest are fallback. Keys live in one settings page, never shown again.
 - **One session, one browser** — the browser session id *is* the DSH session
   id, created on first use; isolated profile, cookies and tabs per session;
-  idle sessions close themselves.
+  idle sessions close themselves, and deleting a workspace closes the browser
+  sessions attached to it.
 
 17 agent tools: navigate, snapshot, click, type, press, scroll, tabs,
 screenshot, search, wait_for, find, batch, console, network. CAPTCHA or
@@ -131,8 +132,8 @@ flowchart LR
   VNC, no extension, no screen-recording hacks.
 - **Search that keeps up** — Gemini grounding gives current whole-web results;
   SearXNG and Brave cover privacy and cost.
-- **Zero registries, zero accounts** — everything builds from source with
-  `docker compose up -d --build`.
+- **No private registry, zero accounts** — first-party services build from
+  source; SearXNG runs from its official image.
 
 <details>
 <summary><b>Full compose & repo layout</b></summary>

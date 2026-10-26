@@ -60,6 +60,8 @@ curl -X POST http://127.0.0.1:8787/test \
    **⤢** maximizes over the chat (same button restores); **×** collapses
    back to the small Browser button.
 5. Resize from any edge or corner; the size persists across reloads.
+6. Deleting a workspace closes the browser sessions attached to it. DSH keeps
+   the session logs; the Chromium profiles are removed.
 
 ## 4. Watch the agent, then take over
 

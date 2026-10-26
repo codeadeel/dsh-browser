@@ -36,6 +36,9 @@ The search gateway is a separate shared service. It is not part of Chromium.
 - Creates one Chromium per session, lazily: the first tool call for a DSH
   session id creates that session's Chromium.
 - Tracks `lastActivityAt` and sweeps idle sessions after a configurable timeout.
+- Watches `domain/changed`; deleting a workspace closes the browser sessions
+  attached to it. DSH removes only the workspace registration and keeps the
+  session logs, so the host plugin mirrors the workspace's `sessionIds`.
 
 ### Browser tools
 
@@ -59,6 +62,7 @@ flowchart LR
   A["agent calls a browser_* tool"] --> B["host plugin reads the DSH session id"]
   B --> C["browser service creates that session's Chromium"]
   C --> D["agent browses · human watches / takes over"]
+  D -->|"workspace deleted"| G["DELETE attached browser sessions"]
   D --> E["idle timeout"]
   E --> F["Chromium stops · profile removed"]
 ```

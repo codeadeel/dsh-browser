@@ -15,6 +15,7 @@ import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { forward, readBody } from './proxy.js'
 import { BROWSER_SESSION_ID, registerBrowserTools } from './tools.js'
+import { installWorkspaceSessionCleanup } from './workspace-cleanup.js'
 
 export const inject = ['webServer', 'connection', 'tools', 'systemPrompt']
 
@@ -267,6 +268,12 @@ export function apply(ctx) {
         'browser_* tools drive the dedicated Chromium for this DSH session, which a human can watch and take over in the live browser panel. Prefer browser_snapshot to read a page and browser_click/browser_type with snapshot ids (like e3, from browser_snapshot or browser_find) to interact. Use browser_wait_for after interactions that load content instead of fixed sleeps. If a page shows a CAPTCHA, consent wall, or another anti-bot check (blocked=true), ask the human to complete it in the live browser panel, then retry. Never attempt to bypass CAPTCHA or other anti-bot checks. For web search, always call mcp__search__web_search — the plain web_search tool is the provider\'s built-in search, which is unavailable and returns errors.',
     })
   }
+
+  // DSH keeps session logs when a workspace registration is deleted; the
+  // browser service is separate and would otherwise keep the Chromium alive
+  // until the idle sweep. Mirror the workspace's session account and close
+  // those browser sessions as soon as the workspace delete commits.
+  installWorkspaceSessionCleanup(ctx, { browserApiUrl, logger: ctx.logger })
 }
 
 export const name = 'dsh-browser-panel-host'
