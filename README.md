@@ -1,11 +1,20 @@
 # dsh-browser
 
+[![CI](https://github.com/codeadeel/dsh-browser/actions/workflows/ci.yml/badge.svg)](https://github.com/codeadeel/dsh-browser/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Node](https://img.shields.io/badge/node-%E2%89%A524-3c873a)](https://nodejs.org)
+[![Docker](https://img.shields.io/badge/docker-compose-2496ed?logo=docker&logoColor=white)](docker-compose.yml)
+
 Give your DeepSeek Harness agent a real browser — and watch it work.
 
 A live Chromium for every DSH session: the agent drives it, you watch it in a
 panel inside the UI, and you can take over with your own mouse and keyboard at
 any time. Backed by a ranked search gateway (SearXNG, Gemini, Brave, Vertex,
 DuckDuckGo) with whole-web Google results.
+
+<a href="docs/demo/dsh-browser-demo.mp4"><img src="docs/demo/preview.gif" width="100%" alt="dsh-browser demo — agent search, live panel, human takeover"></a>
+
+## How it fits together
 
 ```mermaid
 flowchart LR
@@ -36,9 +45,8 @@ flowchart LR
   instantly (your clicks and keys go to the same tab). Resizable card, tabs
   strip, address bar, maximize mode.
 - **Ranked search** — whole-web Google results via Gemini grounding; Brave,
-  SearXNG, Vertex, DuckDuckGo drag-to-reorder; first provider that answers
-  wins, the rest are fallback. Keys live in one settings page, never shown
-  again.
+  SearXNG, Vertex, DuckDuckGo reorderable; first provider that answers wins,
+  the rest are fallback. Keys live in one settings page, never shown again.
 - **One session, one browser** — the browser session id *is* the DSH session
   id, created on first use; isolated profile, cookies and tabs per session;
   idle sessions close themselves.
@@ -58,15 +66,15 @@ docker compose up -d --build     # one command, whole backend
 dsh --profile web --patch config/dsh-search.patch.yml --no-open --host 0.0.0.0 --port 3000
 ```
 
-Then install the panel plugin — either way works:
+<details>
+<summary><b>Install the panel plugin</b> (UI or CLI)</summary>
 
-**From the DSH UI** (open the `?token=` URL DSH printed):
+**From the DSH UI** — open the `?token=` URL DSH printed:
 
 1. **Plugins** in the sidebar
 2. **Add plugin → Install a third-party plugin**
 3. paste `github:codeadeel/dsh-browser#path:panel`
 4. **Install → Enable now**
-
 
 **From the CLI:**
 
@@ -80,6 +88,8 @@ flowchart LR
   P --> B["CLI: dsh plugin add<br/>github:codeadeel/dsh-browser#…&path=panel"]
   P --> C["dev: link:/path/panel"]
 ```
+
+</details>
 
 Click the **Browser** button, and in **Plugins → dsh-browser-panel** set your
 provider order, save, and run **Test search**.
@@ -122,7 +132,8 @@ flowchart LR
 - **Zero registries, zero accounts** — everything builds from source with
   `docker compose up -d --build`.
 
-## Full compose
+<details>
+<summary><b>Full compose & repo layout</b></summary>
 
 ```mermaid
 flowchart TB
@@ -136,14 +147,15 @@ flowchart TB
   P["playwright-mcp (--profile extra)"]
 ```
 
-## Repo layout
-
 ```text
 panel/           what you see in DSH (panel UI, settings, host bridge)
 src/search/      the ranked search gateway
 src/browser/     Chromium sessions + the live viewer
+docs/demo/       the 35s product demo + preview
 docker-compose.yml + Dockerfile    the whole backend, one command
 ```
+
+</details>
 
 Docs: [`docs/walkthrough.md`](docs/walkthrough.md) — the 10-minute tour.
 Architecture for contributors: [`docs/architecture.md`](docs/architecture.md).

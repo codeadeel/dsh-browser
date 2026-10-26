@@ -32,17 +32,20 @@ jobs:
         run: |
           # The runner user cannot write to /opt, so install under the temp dir
           # and point the tests at it with CHROME_PATH.
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            ca-certificates curl unzip \
+            libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0 \
+            libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libasound2t64 \
+            libpango-1.0-0 libcairo2 libx11-6 libxcb1 libxext6 fonts-liberation
           CHROME_DIR="$RUNNER_TEMP/chrome-for-testing/chrome/linux-156.0.8078.47/chrome-linux64"
           mkdir -p "$CHROME_DIR"
           curl -fsSL -o /tmp/chrome-linux64.zip \
             "https://storage.googleapis.com/chrome-for-testing-public/156.0.8078.47/linux64/chrome-linux64.zip"
           unzip -q -o /tmp/chrome-linux64.zip -d "$RUNNER_TEMP/chrome-unzip"
           mv "$RUNNER_TEMP/chrome-unzip/chrome-linux64/"* "$CHROME_DIR/"
+          "$CHROME_DIR/chrome" --version
           echo "CHROME_PATH=$CHROME_DIR/chrome" >> "$GITHUB_ENV"
-          sudo apt-get update && sudo apt-get install -y --no-install-recommends \
-            libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0 \
-            libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libasound2 \
-            libpango-1.0-0 libcairo2 libx11-6 libxcb1 libxext6 fonts-liberation
 
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck

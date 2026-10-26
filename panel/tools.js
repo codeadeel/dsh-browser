@@ -217,6 +217,13 @@ const OUTPUT_SCHEMA = {
     ok: { type: 'boolean' },
     content: { type: 'string' },
     error: { type: 'string' },
+    image: {
+      type: 'object',
+      properties: {
+        data: { type: 'string' },
+        mimeType: { type: 'string' },
+      },
+    },
   },
 }
 
@@ -232,7 +239,12 @@ export function registerBrowserTools(ctx, browserApiUrl) {
       timeoutMs: def.timeoutMs,
       output: {
         schema: OUTPUT_SCHEMA,
-        render: (_args, value) => [{ type: 'text', text: typeof value?.content === 'string' ? value.content : '' }],
+        render: (_args, value) => [
+          { type: 'text', text: typeof value?.content === 'string' ? value.content : '' },
+          ...(value?.image?.data
+            ? [{ type: 'image', data: value.image.data, mimeType: value.image.mimeType || 'image/png' }]
+            : []),
+        ],
       },
       async execute(args, exec) {
         const sessionId = exec?.agent?.session?.id
@@ -258,7 +270,14 @@ export function registerBrowserTools(ctx, browserApiUrl) {
         if (body?.ok !== true) {
           throw new Error(typeof body?.error === 'string' && body.error !== '' ? body.error : 'browser tool failed')
         }
-        return { ok: true, content: typeof body?.content === 'string' ? body.content : '' }
+        const image = def.name === 'browser_screenshot' && typeof body?.structured?.base64 === 'string'
+          ? { data: body.structured.base64, mimeType: body.structured.mime ?? 'image/png' }
+          : undefined
+        return {
+          ok: true,
+          content: def.name === 'browser_screenshot' ? 'Screenshot captured.' : (typeof body?.content === 'string' ? body.content : ''),
+          ...(image ? { image } : {}),
+        }
       },
     }
     disposers.push(tools.register(definition))

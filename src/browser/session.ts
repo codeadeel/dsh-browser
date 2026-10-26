@@ -443,11 +443,11 @@ export class BrowserSession {
       if (this.screencastSession === session) this.screencastSession = null
     })
     await session.send('Page.enable')
-    const width = 1280
-    const height = 800
+    const width = 1600
+    const height = 1000
     await session.send('Page.startScreencast', {
       format: 'jpeg',
-      quality: 82,
+      quality: 85,
       maxWidth: width,
       maxHeight: height,
       everyNthFrame: 1,
@@ -533,7 +533,15 @@ export class BrowserSession {
   async queueViewerInput(events: ViewerInputEvent[]): Promise<void> {
     if (events.length === 0) return
     const run = this.inputChain.then(async () => {
-      for (const event of events) await this.dispatchViewerInput(event)
+      for (const event of events) {
+        // A stalled CDP dispatch must not wedge the whole input channel.
+        await Promise.race([
+          this.dispatchViewerInput(event),
+          new Promise<never>((_, reject) => {
+            setTimeout(() => reject(new Error('viewer input dispatch timed out')), 5_000)
+          }),
+        ])
+      }
     })
     this.inputChain = run.catch(() => undefined)
     await run
