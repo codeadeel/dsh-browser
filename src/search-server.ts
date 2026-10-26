@@ -4,6 +4,7 @@ import { handleStatelessMcpRequest, listen, type HttpHandle } from './mcp/http.j
 import { createSearchMcpServer } from './search/mcp.js'
 import { SearchConfigStore } from './search/store.js'
 import { handleSearchConfigRequest } from './search/config-server.js'
+import { createGatewayProxy } from './search/gateway-proxy.js'
 
 function sendJson(res: ServerResponse, status: number, body: unknown): void {
   if (res.writableEnded) return
@@ -17,17 +18,36 @@ export interface SearchGatewayHandle {
   close: () => Promise<void>
 }
 
+export interface SearchGatewayOptions {
+  /** Internal browser API base; defaults to GATEWAY_BROWSER_API_URL. */
+  browserApiUrl?: string
+  /** Internal viewer base; defaults to GATEWAY_BROWSER_VIEWER_URL. */
+  viewerUrl?: string
+}
+
 /**
- * The unified search gateway: one HTTP port serving the MCP endpoint
- * (`/mcp`), the settings API (`/config`, `/test`), and `/health`.
- * Everything else in the search stack stays on the compose network.
+ * The stack gateway: one HTTP/WS port serving the browser API under
+ * `/browser/*`, the viewer under `/viewer/*`, and search at the root
+ * (`/mcp`, `/config`, `/test`, `/health`). The backing services stay on the
+ * compose network and publish no host ports.
  */
 export async function startSearchGateway(
   store: SearchConfigStore,
   host: string,
   port: number,
+  options: SearchGatewayOptions = {},
 ): Promise<SearchGatewayHandle> {
+  const proxy = createGatewayProxy({
+    browserApiUrl: options.browserApiUrl
+      ?? process.env.GATEWAY_BROWSER_API_URL
+      ?? 'http://127.0.0.1:8790',
+    viewerUrl: options.viewerUrl
+      ?? process.env.GATEWAY_BROWSER_VIEWER_URL
+      ?? 'http://127.0.0.1:8791',
+  })
+
   const http = createServer(async (req, res) => {
+    if (proxy.handle(req, res)) return
     const pathname = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`).pathname
     try {
       if (pathname === '/health') {
@@ -46,12 +66,14 @@ export async function startSearchGateway(
       else res.destroy()
     }
   })
+  proxy.attach(http)
 
   const actualPort = await listen(http, host, port)
   return {
     url: `http://${host}:${actualPort}`,
     mcpUrl: `http://${host}:${actualPort}/mcp`,
     close: async () => {
+      await proxy.close()
       await new Promise<void>(resolve => {
         http.close(() => resolve())
         http.closeAllConnections()
@@ -68,6 +90,8 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 
   const handle = await startSearchGateway(store, config.host, config.port)
   console.log(`[search] gateway listening on ${handle.url}`)
+  console.log(`[search] browser API: ${handle.url}/browser`)
+  console.log(`[search] viewer: ${handle.url}/viewer`)
   console.log(`[search] MCP endpoint: ${handle.mcpUrl}`)
   console.log(`[search] settings API: ${handle.url}/config`)
   console.log(`[search] config file: ${config.configPath}`)

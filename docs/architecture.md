@@ -20,13 +20,21 @@ flowchart TB
   Screen <--> Chrome
 ```
 
-The search gateway is a separate shared service. It is not part of Chromium.
+The gateway is the only published backend service. The browser API, viewer,
+SearXNG, and Brave MCP stay on the compose network. DSH is the only public
+surface; its host plugin proxies `/dsh-browser/*` to the gateway.
 
 ## Components
 
-### Search gateway
+### Gateway
 
-- Stateless MCP server exposing `web_search`.
+- One HTTP/WS port, path-prefixed:
+  - `/browser/*` → browser service (`:8790`)
+  - `/viewer/*` → viewer (`:8791`), including SSE and WebSocket input
+  - `/mcp`, `/config`, `/test`, `/health` → search
+- Passes HTTP methods and bodies through, streams SSE, and upgrades the
+  viewer WebSocket.
+- Stateless MCP search exposing `web_search`.
 - Ranked provider chain: SearXNG, Google CSE, Gemini, Brave, Vertex, DuckDuckGo.
 - Returns URLs and snippets. Does not know about browser sessions.
 
@@ -52,7 +60,10 @@ The search gateway is a separate shared service. It is not part of Chromium.
 
 - Connects to the search gateway as a generic MCP client.
 - Loads `dsh-browser-panel`, whose host half registers the native `browser_*`
-  tools and proxies `/dsh-browser/*` to the loopback services.
+  tools and proxies `/dsh-browser/*` to the gateway. The normal configuration
+  is the plugin's **Stack gateway address** field; it derives `/browser`,
+  `/viewer`, and search at the root. `DSH_BROWSER_GATEWAY_URL` is only a
+  first-run seed for preconfigured/headless deployments.
 - Contains no Chromium code; can be upgraded independently.
 
 ## Session lifecycle

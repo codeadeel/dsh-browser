@@ -20,18 +20,21 @@ import { BROWSER_SESSION_ID } from './tools.js'
  *
  * @param {{ inject?: Function }} ctx - DSH host context.
  * @param {{
- *   browserApiUrl?: string,
+ *   browserApiUrl?: string | (() => string),
  *   closeSession?: (sessionId: string) => Promise<unknown>,
  *   logger?: { warn?: (message: string) => void },
  * }} [options]
  */
 export function installWorkspaceSessionCleanup(ctx, options = {}) {
-  const browserApiUrl = String(options.browserApiUrl ?? '').replace(/\/$/, '')
-  if (!ctx || typeof ctx.inject !== 'function' || browserApiUrl === '') return
+  const rawBrowserApiUrl = options.browserApiUrl
+  const resolveBrowserApiUrl = typeof rawBrowserApiUrl === 'function'
+    ? () => String(rawBrowserApiUrl() ?? '').replace(/\/$/, '')
+    : () => String(rawBrowserApiUrl ?? '').replace(/\/$/, '')
+  if (!ctx || typeof ctx.inject !== 'function' || resolveBrowserApiUrl() === '') return
 
   const logger = options.logger
   const closeSession = options.closeSession
-    ?? ((sessionId) => deleteBrowserSession(browserApiUrl, sessionId, logger))
+    ?? ((sessionId) => deleteBrowserSession(resolveBrowserApiUrl(), sessionId, logger))
   const sessionsByWorkspace = new Map()
 
   const remember = (workspaceId, sessionIds) => {

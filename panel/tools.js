@@ -228,6 +228,7 @@ const OUTPUT_SCHEMA = {
 }
 
 export function registerBrowserTools(ctx, browserApiUrl) {
+  const apiBase = typeof browserApiUrl === 'function' ? browserApiUrl : () => browserApiUrl
   const tools = ctx.get('tools')
   if (!tools) return []
   const disposers = []
@@ -253,7 +254,7 @@ export function registerBrowserTools(ctx, browserApiUrl) {
         }
         let response
         try {
-          response = await fetch(`${browserApiUrl}/sessions/${encodeURIComponent(sessionId)}/tool`, {
+          response = await fetch(`${apiBase()}/sessions/${encodeURIComponent(sessionId)}/tool`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ name: def.name, args }),

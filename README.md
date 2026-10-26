@@ -23,17 +23,17 @@ flowchart LR
     Settings["Search settings<br/>ranking · keys · stack address"]
   end
   Host["Host plugin<br/>/dsh-browser/* proxy · browser_* tools"]
-  Browser["Browser service :8790<br/>sessions · tool dispatch"]
-  Viewer["Viewer :8791<br/>SSE frames · WS input"]
-  Gateway["Search gateway :8787<br/>/mcp /config /test /health"]
+  Browser["Browser service<br/>internal :8790"]
+  Viewer["Viewer<br/>internal :8791"]
+  Gateway["Gateway :8787<br/>/browser /viewer<br/>/mcp /config /test"]
   Chrome["Dedicated Chromium<br/>one profile per session"]
   Chain["Providers (ranked)<br/>searxng → cse → gemini → brave → vertex → ddg"]
 
   Panel --> Host
   Settings --> Host
-  Host --> Browser
-  Host --> Viewer
   Host --> Gateway
+  Gateway --> Browser
+  Gateway --> Viewer
   Browser --> Chrome
   Viewer -->|"same page, live"| Chrome
   Gateway --> Chain
@@ -61,11 +61,36 @@ design, never automated.
 
 ```bash
 git clone https://github.com/codeadeel/dsh-browser.git && cd dsh-browser
-cp .env.example .env              # Gemini/Brave keys (SearXNG needs none)
+cp .env.example .env              # optional; defaults are fine
 docker compose up -d --build     # one command, whole backend
 
-dsh --profile web --patch config/dsh-search.patch.yml --no-open --host 0.0.0.0 --port 3000
+curl -s http://127.0.0.1:8787/health          # gateway
+curl -s http://127.0.0.1:8787/browser/health  # browser, internal
+curl -s http://127.0.0.1:8787/viewer/health   # viewer, internal
+
+DSH_ORIGIN=http://127.0.0.1:3000 DSH_PORT=3000 \
+dsh --profile web --patch config/dsh-search.patch.yml \
+  --no-open --host 127.0.0.1 --port 3000
 ```
+
+Only the gateway port (8787) is published. The browser, viewer, SearXNG, and
+Brave MCP stay on the compose network. For a remote DSH host, bind the gateway
+to a private/VPN address (or use an SSH tunnel) and enter its URL in the plugin
+page.
+
+### Configuration
+
+| Where | Setting | Default | Notes |
+|---|---|---|---|
+| Stack `.env` | `GATEWAY_BIND` | `127.0.0.1` | Host interface for the only published backend port. Use a private/VPN IP for a remote DSH; `0.0.0.0` only behind a firewall. |
+| Stack `.env` | `GATEWAY_PORT` | `8787` | Host gateway port. |
+| Stack `.env` | search/browser settings | see `.env.example` | Optional stack/host-dev knobs. Search keys can be set in the plugin UI. |
+| DSH UI | **Stack gateway address** | `http://127.0.0.1:8787` | The only DSH-side URL; persisted. Remote: `https://search.codeadeel.com`. |
+| DSH env (optional) | `DSH_BROWSER_GATEWAY_URL` | unset | First-run seed only. Normal setups use the UI. |
+
+For Cloudflare Tunnel or a reverse proxy, keep `GATEWAY_BIND=127.0.0.1` and
+point the tunnel at `http://127.0.0.1:8787`. The public HTTPS URL goes in the
+plugin UI; no stack port needs to be exposed.
 
 <details>
 <summary><b>Install the panel plugin</b> (UI or CLI)</summary>
@@ -94,8 +119,10 @@ flowchart LR
 
 </details>
 
-Click the **Browser** button, and in **Plugins → dsh-browser-panel** set your
-provider order, save, and run **Test search**.
+Click the **Browser** button. In **Plugins → dsh-browser-panel** set the
+**Stack gateway address** (default `http://127.0.0.1:8787`; a remote stack
+uses its public/private gateway URL), choose your provider order, save, and
+run **Test search**.
 
 Then ask the agent: *"search for the DeepSeek R2 release date, open the top
 result, and summarize it"* — and watch it happen in the panel.
@@ -113,8 +140,10 @@ flowchart LR
 - Gemini = whole-web Google grounding, AI Studio key, billing required.
 - Brave = official Brave MCP service in compose; REST fallback with a key.
 - SearXNG = free, self-hosted, no key. Vertex = site-scoped app search.
-- One address for everything (`DSH_SEARCH_URL`, settable in the plugin page);
-  the stack can live on another machine. Plain HTTP end to end.
+- One gateway address for everything, set in the plugin page: search at the
+  root, browser at `/browser`, viewer at `/viewer`. `DSH_BROWSER_GATEWAY_URL`
+  is only a first-run seed. The stack can live on another machine. Plain HTTP
+  end to end unless you put it behind TLS.
 
 ## How the browser works
 
@@ -143,8 +172,8 @@ flowchart TB
   subgraph base["docker compose up -d --build"]
     S["searxng"]
     B["brave-mcp"]
-    G["search-gateway :8787"]
-    BR["browser :8790/:8791"]
+    G["gateway :8787 — only published port<br/>search + /browser + /viewer"]
+    BR["browser (internal) :8790/:8791"]
   end
   D["dsh (--profile web)"]
   P["playwright-mcp (--profile extra)"]
@@ -152,7 +181,7 @@ flowchart TB
 
 ```text
 panel/           what you see in DSH (panel UI, settings, host bridge)
-src/search/      the ranked search gateway
+src/search/      the gateway + ranked search
 src/browser/     Chromium sessions + the live viewer
 docs/demo/       the 35s product demo + preview
 docker-compose.yml + Dockerfile    the whole backend, one command

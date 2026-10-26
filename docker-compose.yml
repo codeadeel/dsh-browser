@@ -1,6 +1,7 @@
 # One compose file, one Dockerfile (multi-target). Everything builds from
-# source; the only host ports are loopback (8787/8790/8791) plus the DSH web
-# port when the `web` profile is enabled.
+# source; the only backend host port is the gateway (8787). The browser,
+# viewer, SearXNG, and Brave MCP stay on the compose network. The DSH web
+# port is optional (--profile web).
 #
 #   docker compose up -d --build           searxng + brave-mcp + gateway + browser
 #   docker compose --profile web up -d     + DSH web container
@@ -56,13 +57,17 @@ services:
       GOOGLE_VERTEX_PROJECT_ID: ${GOOGLE_VERTEX_PROJECT_ID:-}
       GOOGLE_VERTEX_ENGINE_ID: ${GOOGLE_VERTEX_ENGINE_ID:-}
       SEARCH_MAX_RESULTS: ${SEARCH_MAX_RESULTS:-8}
+      GATEWAY_BROWSER_API_URL: http://browser:8790
+      GATEWAY_BROWSER_VIEWER_URL: http://browser:8791
     ports:
-      # One published port: /mcp /config /test /health
-      - "127.0.0.1:8787:8787"
+      # The only published backend port. Routes: /browser/*, /viewer/*,
+      # /mcp, /config, /test, /health.
+      - "${GATEWAY_BIND:-127.0.0.1}:${GATEWAY_PORT:-8787}:8787"
     volumes:
       - ./data:/data
     depends_on:
       - searxng
+      - browser
     networks:
       - dsh
 
@@ -76,10 +81,7 @@ services:
       BROWSER_VIEWER_PORT: 8791
       BROWSER_HEADLESS: ${BROWSER_HEADLESS:-true}
       BROWSER_IDLE_TIMEOUT_MS: ${BROWSER_IDLE_TIMEOUT_MS:-1800000}
-    ports:
-      # Loopback-only; the DSH host proxies both.
-      - "127.0.0.1:8790:8790"
-      - "127.0.0.1:8791:8791"
+    # Internal only: the gateway proxies /browser/* and /viewer/*.
     volumes:
       - ./data:/data
     networks:
@@ -95,8 +97,8 @@ services:
       DSH_HOME: /dsh-home
       DSH_PUBLIC_URL: ${DSH_PUBLIC_URL:-http://localhost:3000/}
       DSH_TRUSTED_HOST: ${DSH_TRUSTED_HOST:-localhost}
-      DSH_BROWSER_API_URL: http://browser:8790
-      DSH_BROWSER_VIEWER_URL: http://browser:8791
+      DSH_BROWSER_API_URL: http://search-gateway:8787/browser
+      DSH_BROWSER_VIEWER_URL: http://search-gateway:8787/viewer
       DSH_SEARCH_URL: http://search-gateway:8787
     ports:
       - "${DSH_PORT:-3000}:3000"

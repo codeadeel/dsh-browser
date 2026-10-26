@@ -171,23 +171,32 @@ function SearchSettings() {
 
   const loadTarget = async () => {
     try {
-      const response = await fetch('/dsh-browser/search-target')
+      let response = await fetch('/dsh-browser/gateway-target')
+      if (response.status === 404) response = await fetch('/dsh-browser/search-target')
       if (!response.ok) throw new Error(`HTTP ${response.status}`)
       const body = await response.json()
-      if (typeof body.searchUrl === 'string') setStackUrl(body.searchUrl)
+      const url = typeof body.gatewayUrl === 'string' ? body.gatewayUrl : body.searchUrl
+      if (typeof url === 'string') setStackUrl(url)
     } catch (error) {
-      setStackStatus(`Search stack address unavailable: ${error instanceof Error ? error.message : String(error)}`)
+      setStackStatus(`Gateway URL unavailable: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
 
   const saveStackUrl = async () => {
     setStackStatus('saving…')
     try {
-      const response = await fetch('/dsh-browser/search-target', {
+      let response = await fetch('/dsh-browser/gateway-target', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ searchUrl: stackUrl.trim() }),
+        body: JSON.stringify({ gatewayUrl: stackUrl.trim() }),
       })
+      if (response.status === 404) {
+        response = await fetch('/dsh-browser/search-target', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ searchUrl: stackUrl.trim() }),
+        })
+      }
       const result = await response.json()
       if (!response.ok) throw new Error(result.error || `HTTP ${response.status}`)
       // Probe the new target through the proxy.
@@ -439,7 +448,7 @@ function SearchSettings() {
         gap: 8,
       },
     },
-      h('span', { style: labelStyle }, 'Search stack address'),
+      h('span', { style: labelStyle }, 'Stack gateway address'),
       h('div', { style: { display: 'flex', gap: 8 } },
         h('input', {
           value: stackUrl,
@@ -452,7 +461,7 @@ function SearchSettings() {
       ),
       h('span', {
         style: { color: 'var(--dsw-alias-label-tertiary)', fontSize: 11 },
-      }, stackStatus || 'One address for search (MCP + settings). Can point at a search stack on another host.'),
+      }, stackStatus || 'One address for browser, viewer, and search. Example: https://search.codeadeel.com.'),
     ),
     ...order.map((id, index) => {
       const row = SEARCH_PROVIDER_ROWS.find(entry => entry.id === id)

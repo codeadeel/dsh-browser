@@ -20,39 +20,53 @@ import { installWorkspaceSessionCleanup } from './workspace-cleanup.js'
 export const inject = ['webServer', 'connection', 'tools', 'systemPrompt']
 
 export function apply(ctx) {
+  // One URL configures the whole stack. The plugin settings page writes it to
+  // the runtime file; env is only a first-run seed. The individual API/viewer/
+  // search envs remain as advanced overrides for split deployments.
+  const seedGateway = (process.env.DSH_BROWSER_GATEWAY_URL || 'http://127.0.0.1:8787').replace(/\/$/, '')
+  const targetFile = join(
+    process.env.DSH_BROWSER_DATA_DIR
+      || (process.env.DSH_HOME ? join(process.env.DSH_HOME, 'dsh-browser-runtime.json') : join(homedir(), '.dsh', 'dsh-browser-runtime.json')),
+  )
+
+  let gatewayUrl = seedGateway
+  try {
+    const persisted = JSON.parse(readFileSync(targetFile, 'utf8'))
+    const saved = persisted?.gatewayUrl ?? persisted?.searchUrl
+    if (typeof saved === 'string' && /^https?:\/\//i.test(saved)) {
+      gatewayUrl = saved.replace(/\/$/, '')
+    }
+  } catch {
+    // No persisted gateway yet; the env seed applies.
+  }
+
+  let searchTarget = (process.env.DSH_SEARCH_URL || process.env.DSH_SEARCH_CONFIG_URL || gatewayUrl).replace(/\/$/, '')
+  let browserApiUrl = (process.env.DSH_BROWSER_API_URL || `${gatewayUrl}/browser`).replace(/\/$/, '')
+  let viewerBase = (process.env.DSH_BROWSER_VIEWER_URL || `${gatewayUrl}/viewer`).replace(/\/$/, '')
+
+  const persistGateway = (url) => {
+    try {
+      mkdirSync(dirname(targetFile), { recursive: true })
+      // Keep searchUrl for older panel versions; gatewayUrl is authoritative.
+      writeFileSync(targetFile, `${JSON.stringify({ gatewayUrl: url, searchUrl: url }, null, 2)}\n`, { mode: 0o600 })
+    } catch {
+      // Persistence is best-effort; the in-memory value still applies.
+    }
+  }
+
+  const applyGateway = (url) => {
+    gatewayUrl = url
+    if (!process.env.DSH_SEARCH_URL && !process.env.DSH_SEARCH_CONFIG_URL) searchTarget = url
+    if (!process.env.DSH_BROWSER_API_URL) browserApiUrl = `${url}/browser`
+    if (!process.env.DSH_BROWSER_VIEWER_URL) viewerBase = `${url}/viewer`
+    persistGateway(url)
+  }
+
   const webServer = ctx.get('webServer')
   if (webServer) {
-    const viewerBase = (process.env.DSH_BROWSER_VIEWER_URL || 'http://127.0.0.1:8791').replace(/\/$/, '')
-    const browserBase = (process.env.DSH_BROWSER_API_URL || 'http://127.0.0.1:8790').replace(/\/$/, '')
-    const viewerWsBase = viewerBase.replace(/^http/, 'ws')
     const connection = ctx.get('connection')
     const disposers = []
-
-    // Runtime-configurable search stack address. Env sets the default; the
-    // plugin settings page can change it at runtime and it persists across
-    // DSH restarts in the harness home.
-    const defaultSearchUrl = (process.env.DSH_SEARCH_URL || process.env.DSH_SEARCH_CONFIG_URL || 'http://127.0.0.1:8787').replace(/\/$/, '')
-    const targetFile = join(
-      process.env.DSH_BROWSER_DATA_DIR
-        || (process.env.DSH_HOME ? join(process.env.DSH_HOME, 'dsh-browser-runtime.json') : join(homedir(), '.dsh', 'dsh-browser-runtime.json')),
-    )
-    let searchTarget = defaultSearchUrl
-    try {
-      const persisted = JSON.parse(readFileSync(targetFile, 'utf8'))
-      if (typeof persisted?.searchUrl === 'string' && /^https?:\/\//i.test(persisted.searchUrl)) {
-        searchTarget = persisted.searchUrl.replace(/\/$/, '')
-      }
-    } catch {
-      // No persisted target yet; the env default applies.
-    }
-    const persistTarget = (url) => {
-      try {
-        mkdirSync(dirname(targetFile), { recursive: true })
-        writeFileSync(targetFile, `${JSON.stringify({ searchUrl: url }, null, 2)}\n`, { mode: 0o600 })
-      } catch {
-        // Persistence is best-effort; the in-memory value still applies.
-      }
-    }
+    const viewerWsBase = () => viewerBase.replace(/^http/, 'ws')
 
     const isLoopback = (req) => {
       const address = req.socket?.remoteAddress
@@ -72,7 +86,7 @@ export function apply(ctx) {
     })
     disposers.push(health)
 
-    const mount = (prefix, base) => {
+    const mount = (prefix, getBase) => {
       const dispose = webServer.register({
         kind: 'prefix',
         path: prefix,
@@ -86,65 +100,76 @@ export function apply(ctx) {
             }
           }
           const suffix = (req.url ?? '').slice(prefix.length) || '/'
-          forward(req, res, `${base}${suffix}`)
+          forward(req, res, `${getBase()}${suffix}`)
         },
       })
       disposers.push(dispose)
     }
 
-    mount('/dsh-browser/viewer', viewerBase)
-    mount('/dsh-browser/browser', browserBase)
+    mount('/dsh-browser/viewer', () => viewerBase)
+    mount('/dsh-browser/browser', () => browserApiUrl)
 
-    // Search: dynamic target, plus the DSH MCP client connects through this
-    // origin on the loopback path so it follows runtime target changes.
-    const searchTargetRoute = webServer.register({
+    // One gateway URL drives the browser API, viewer, and search at runtime.
+    // The legacy search-target path stays as an alias for older panel clients.
+    const handleGatewayTarget = (req, res) => {
+      if (connection) {
+        const admission = connection.admit(req)
+        if ('rejection' in admission) {
+          res.writeHead(admission.rejection)
+          res.end(admission.rejection === 401 ? 'dsh web authentication required' : 'forbidden')
+          return
+        }
+      }
+      res.setHeader('content-type', 'application/json; charset=utf-8')
+      res.setHeader('cache-control', 'no-store')
+      if (req.method === 'GET') {
+        res.end(JSON.stringify({ gatewayUrl, searchUrl: searchTarget }))
+        return
+      }
+      if (req.method === 'POST') {
+        void readBody(req).then(async raw => {
+          try {
+            const body = JSON.parse(raw || '{}')
+            const candidate = typeof body?.gatewayUrl === 'string'
+              ? body.gatewayUrl
+              : typeof body?.searchUrl === 'string'
+                ? body.searchUrl
+                : ''
+            const url = candidate.trim().replace(/\/$/, '')
+            if (!/^https?:\/\//i.test(url)) {
+              res.writeHead(400)
+              res.end(JSON.stringify({ error: 'gatewayUrl must be an http(s) URL' }))
+              return
+            }
+            applyGateway(url)
+            res.writeHead(200)
+            res.end(JSON.stringify({ gatewayUrl, searchUrl: searchTarget }))
+          } catch {
+            if (!res.headersSent) {
+              res.writeHead(400)
+              res.end(JSON.stringify({ error: 'invalid request body' }))
+            }
+          }
+        }).catch(() => {
+          if (!res.headersSent) res.destroy()
+        })
+        return
+      }
+      res.writeHead(405)
+      res.end(JSON.stringify({ error: 'method not allowed' }))
+    }
+
+    const gatewayTargetRoute = webServer.register({
+      kind: 'exact',
+      path: '/dsh-browser/gateway-target',
+      handler: handleGatewayTarget,
+    })
+    const legacyTargetRoute = webServer.register({
       kind: 'exact',
       path: '/dsh-browser/search-target',
-      handler: (req, res) => {
-        if (connection) {
-          const admission = connection.admit(req)
-          if ('rejection' in admission) {
-            res.writeHead(admission.rejection)
-            res.end(admission.rejection === 401 ? 'dsh web authentication required' : 'forbidden')
-            return
-          }
-        }
-        res.setHeader('content-type', 'application/json; charset=utf-8')
-        res.setHeader('cache-control', 'no-store')
-        if (req.method === 'GET') {
-          res.end(JSON.stringify({ searchUrl: searchTarget }))
-          return
-        }
-        if (req.method === 'POST') {
-          void readBody(req).then(async raw => {
-            try {
-              const body = JSON.parse(raw || '{}')
-              const url = typeof body?.searchUrl === 'string' ? body.searchUrl.trim() : ''
-              if (!/^https?:\/\//i.test(url)) {
-                res.writeHead(400)
-                res.end(JSON.stringify({ error: 'searchUrl must be an http(s) URL' }))
-                return
-              }
-              searchTarget = url.replace(/\/$/, '')
-              persistTarget(searchTarget)
-              res.writeHead(200)
-              res.end(JSON.stringify({ searchUrl: searchTarget }))
-            } catch {
-              if (!res.headersSent) {
-                res.writeHead(400)
-                res.end(JSON.stringify({ error: 'invalid request body' }))
-              }
-            }
-          }).catch(() => {
-            if (!res.headersSent) res.destroy()
-          })
-          return
-        }
-        res.writeHead(405)
-        res.end(JSON.stringify({ error: 'method not allowed' }))
-      },
+      handler: handleGatewayTarget,
     })
-    disposers.push(searchTargetRoute)
+    disposers.push(gatewayTargetRoute, legacyTargetRoute)
 
     const searchMount = webServer.register({
       kind: 'prefix',
@@ -204,7 +229,7 @@ export function apply(ctx) {
           }
           wss.handleUpgrade(req, socket, head, client => {
             client.once('close', () => admission.release())
-            const upstream = new WebSocket(`${viewerWsBase}/sessions/${encodeURIComponent(sessionId)}/ws`)
+            const upstream = new WebSocket(`${viewerWsBase()}/sessions/${encodeURIComponent(sessionId)}/ws`)
             const pending = []
             let upstreamOpen = false
             upstream.on('open', () => {
@@ -251,8 +276,7 @@ export function apply(ctx) {
     })
   }
 
-  const browserApiUrl = (process.env.DSH_BROWSER_API_URL || 'http://127.0.0.1:8790').replace(/\/$/, '')
-  const toolDisposers = registerBrowserTools(ctx, browserApiUrl)
+  const toolDisposers = registerBrowserTools(ctx, () => browserApiUrl)
   if (toolDisposers.length > 0) {
     ctx.effect(() => () => {
       for (const dispose of toolDisposers) dispose()
@@ -273,7 +297,7 @@ export function apply(ctx) {
   // browser service is separate and would otherwise keep the Chromium alive
   // until the idle sweep. Mirror the workspace's session account and close
   // those browser sessions as soon as the workspace delete commits.
-  installWorkspaceSessionCleanup(ctx, { browserApiUrl, logger: ctx.logger })
+  installWorkspaceSessionCleanup(ctx, { browserApiUrl: () => browserApiUrl, logger: ctx.logger })
 }
 
 export const name = 'dsh-browser-panel-host'

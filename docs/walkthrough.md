@@ -9,12 +9,17 @@ layer. Every check has an expected result so you know it works.
 | Port | Service | Binding | Reached via |
 |---|---|---|---|
 | DSH web port (any) | DSH web UI | public | browser (the only public port) |
-| `8790` | browser session manager | loopback | DSH host proxy `/dsh-browser/browser/*` |
-| `8791` | viewer (screencast SSE + WS input) | loopback | DSH host proxy `/dsh-browser/viewer/*`, `/dsh-browser/ws` |
-| `8787` | search gateway — MCP + settings + health on one port | loopback | DSH MCP client + host proxy `/dsh-browser/search/*` |
+| `8787` | **gateway** — browser API + viewer + search | loopback (single published backend port) | DSH host proxy `/dsh-browser/browser/*`, `/dsh-browser/viewer/*`, `/dsh-browser/ws`, `/dsh-browser/search/*` |
+| `8790` | browser session manager | internal only | gateway `/browser/*` |
+| `8791` | viewer (screencast SSE + WS input) | internal only | gateway `/viewer/*` |
 
 The browser session id **is** the DSH session id: the first `browser_*` tool
 call by an agent auto-creates that session's Chromium.
+
+The stack `.env` configures the gateway bind plus optional search/browser
+settings. The DSH gateway URL is not in `.env`; it is set once in
+**Plugins → dsh-browser-panel → Stack gateway address** and persisted there.
+No `DSH_*` env vars are required.
 
 ## 1. Start the stack
 
@@ -27,8 +32,9 @@ docker compose up -d --build
 #       (keep Registry on the default; `github:codeadeel/dsh-browser#path:panel`)
 #   dev checkout: dsh plugin --profile web add link:/path/to/dsh-browser/panel
 dsh plugin --profile web add "github:codeadeel/dsh-browser#path:panel"
+DSH_ORIGIN=http://127.0.0.1:3000 DSH_PORT=3000 \
 dsh --profile web --patch config/dsh-search.patch.yml \
-  --no-open --host 0.0.0.0 --port 3000
+  --no-open --host 127.0.0.1 --port 3000
 ```
 
 Expected: DSH prints a one-time URL ending in `?token=…`. Open it; the cookie
@@ -43,10 +49,11 @@ Optional all-in-one containers: `docker compose up -d --build` and
 
 ```bash
 curl http://127.0.0.1:8787/health          # {"ok":true}
-curl http://127.0.0.1:8790/health          # {"ok":true,"sessions":0}
+curl http://127.0.0.1:8787/browser/health  # {"ok":true,"sessions":0}
+curl http://127.0.0.1:8787/viewer/health   # {"ok":true}
 curl -X POST http://127.0.0.1:8787/test \
   -H 'content-type: application/json' \
-  -d '{"query":"DeepSeek R2"}'            # {"ok":true,"provider":"google-gemini",…}
+  -d '{"query":"DeepSeek R2"}'            # {"ok":true,"provider":"searxng",…}
 ```
 
 ## 3. Open the panel
@@ -87,27 +94,33 @@ curl -X POST http://127.0.0.1:8787/test \
 ## 6. Search settings (own page, not DSH settings)
 
 1. In the DSH UI open **Plugins → dsh-browser-panel**.
-2. Choose the provider lane:
+2. Set **Stack gateway address** and Save. Default `http://127.0.0.1:8787`;
+   a remote stack uses its public/private gateway URL. This one address covers
+   browser, viewer, and search. The `DSH_BROWSER_GATEWAY_URL` env is only a
+   first-run seed; the saved UI value wins.
+3. Choose the provider lane:
    - **Auto** — SearXNG → CSE → Gemini → Vertex → DuckDuckGo,
    - **SearXNG** (self-hosted, already running via Docker),
    - **Google Programmable Search** (legacy JSON API — existing customers only),
    - **Google Gemini Search** (whole-web grounding — open-ended like Google),
    - **Google Vertex AI Search** (searches the sites in your data store),
    - **DuckDuckGo**.
-3. Google keys are write-only from the UI: the gateway stores them in
+4. Google keys are write-only from the UI: the gateway stores them in
    `data/search-config.json` (mode `0600`) and only ever shows a masked
    preview. Blank = keep saved key.
-4. **Vertex AI Search** needs three values: the Cloud API key, the GCP
+5. **Vertex AI Search** needs three values: the Cloud API key, the GCP
    **project ID**, and the **app ID** of an AI Applications website search
    app (see below).
-5. **Test search** runs a live query through the chosen provider and prints
+6. **Test search** runs a live query through the chosen provider and prints
    the raw result JSON.
 
 Expected for Auto: `{"ok":true,"provider":"searxng","results":[…]}`.
 
 ### Brave via the official MCP service
 
-1. Put your subscription token in `.env`: `BRAVE_API_KEY=BSA…`.
+1. Set the Brave subscription token in **Plugins → dsh-browser-panel**
+   (Brave row), or add `BRAVE_API_KEY=BSA…` to `.env` for a preconfigured
+   stack.
 2. `docker compose up -d --build` — this starts
    Brave's official MCP server and the gateway calls it directly.
 3. In **Plugins → dsh-browser-panel**, the Brave row shows **mcp service** —
@@ -167,7 +180,7 @@ DSH session id, so two DSH sessions can never share a browser profile.
 | Feature | Check |
 |---|---|
 | Session binding | Ask the agent to browse → its session appears in the panel selector with the DSH session id |
-| WS input | Footer says `input: ws`; wheel-scroll the panel, then `curl -X POST http://127.0.0.1:8790/sessions/<id>/tool -d '{"name":"browser_snapshot","args":{}}'` and confirm `scrollY > 0` |
+| WS input | Footer says `input: ws`; wheel-scroll the panel, then `curl -X POST http://127.0.0.1:8787/browser/sessions/<id>/tool -d '{"name":"browser_snapshot","args":{}}'` and confirm `scrollY > 0` |
 | New tools | Ask the agent to use `browser_wait_for` / `browser_find` / `browser_batch`; or call them directly via `POST /sessions/<id>/tool` |
 | Packaging | `docker compose up -d --build` (and `--profile web` for the DSH container); `docker compose logs dsh \| grep '?token='` |
 
@@ -175,7 +188,7 @@ DSH session id, so two DSH sessions can never share a browser profile.
 
 - **Panel says "Waiting for browser frame…"** — the session is on a blank
   page or the viewer is unreachable. Navigate somewhere; check
-  `curl http://127.0.0.1:8790/health`.
+  `curl http://127.0.0.1:8787/browser/health`.
 - **Footer shows `input: http`** — the WS channel dropped; the panel retries
   with backoff and falls back to HTTP POST automatically. Check that DSH was
   started with the current panel plugin installed.
