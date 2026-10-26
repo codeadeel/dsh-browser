@@ -23,10 +23,10 @@ call by an agent auto-creates that session's Chromium.
 docker compose up -d --build
 
 # DSH with the panel plugin (installed once per profile):
-#   UI: Plugins → Add plugin → Install a third-party plugin →
-#       paste `github:codeadeel/dsh-browser#path:panel`
+#   UI: Plugins → Add plugin → paste the address into the package field
+#       (keep Registry on the default; `github:codeadeel/dsh-browser#path:panel`)
 #   dev checkout: dsh plugin --profile web add link:/path/to/dsh-browser/panel
-dsh plugin --profile web add "github:codeadeel/dsh-browser#path=panel"
+dsh plugin --profile web add "github:codeadeel/dsh-browser#path:panel"
 dsh --profile web --patch config/dsh-search.patch.yml \
   --no-open --host 0.0.0.0 --port 3000
 ```

@@ -49,6 +49,20 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
+
+      - name: Verify panel package contents
+        working-directory: panel
+        run: |
+          npm pack --dry-run --json > /tmp/panel-pack.json
+          node -e '
+            const pack = require("/tmp/panel-pack.json")[0];
+            const files = new Set(pack.files.map(f => f.path));
+            const required = ["index.js", "proxy.js", "tools.js", "client.js", "cordis.patch.yml"];
+            const missing = required.filter(f => !files.has(f));
+            if (missing.length) { console.error("missing from panel package:", missing); process.exit(1); }
+            console.log("panel package files ok:", required.join(", "));
+          '
+
       - run: pnpm test
 
   # Build-only: validates the service images on each push/PR. No registry and

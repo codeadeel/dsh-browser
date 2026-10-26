@@ -72,8 +72,10 @@ dsh --profile web --patch config/dsh-search.patch.yml --no-open --host 0.0.0.0 -
 **From the DSH UI** — open the `?token=` URL DSH printed:
 
 1. **Plugins** in the sidebar
-2. **Add plugin → Install a third-party plugin**
-3. paste `github:codeadeel/dsh-browser#path:panel`
+2. **Add plugin**
+3. paste `github:codeadeel/dsh-browser#path:panel` into the **package field**
+   (leave **Registry** on the default npm registry — its custom address is for
+   private registries, not plugin specs)
 4. **Install → Enable now**
 
 **From the CLI:**
