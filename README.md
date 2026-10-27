@@ -68,9 +68,7 @@ curl -s http://127.0.0.1:8787/health          # gateway
 curl -s http://127.0.0.1:8787/browser/health  # browser, internal
 curl -s http://127.0.0.1:8787/viewer/health   # viewer, internal
 
-DSH_ORIGIN=http://127.0.0.1:3000 DSH_PORT=3000 \
-dsh --profile web --patch config/dsh-search.patch.yml \
-  --no-open --host 127.0.0.1 --port 3000
+dsh --profile web --no-open --host 127.0.0.1 --port 3000
 ```
 
 Only the gateway port (8787) is published. The browser, viewer, SearXNG, and
@@ -85,7 +83,7 @@ page.
 | Stack `.env` | `GATEWAY_BIND` | `127.0.0.1` | Host interface for the only published backend port. Use a private/VPN IP for a remote DSH; `0.0.0.0` only behind a firewall. |
 | Stack `.env` | `GATEWAY_PORT` | `8787` | Host gateway port. |
 | Stack `.env` | search/browser settings | see `.env.example` | Optional stack/host-dev knobs. Search keys can be set in the plugin UI. |
-| DSH UI | **Stack gateway address** | `http://127.0.0.1:8787` | The only DSH-side URL; persisted. Remote: `https://search.codeadeel.com`. |
+| DSH UI | **Stack gateway address** | `http://127.0.0.1:8787` | One URL only; persisted. Use the local URL when the backend is on this host, otherwise the backend’s reachable URL. |
 | DSH env (optional) | `DSH_BROWSER_GATEWAY_URL` | unset | First-run seed only. Normal setups use the UI. |
 
 For Cloudflare Tunnel or a reverse proxy, keep `GATEWAY_BIND=127.0.0.1` and
@@ -104,11 +102,17 @@ plugin UI; no stack port needs to be exposed.
    private registries, not plugin specs)
 4. **Install → Enable now**
 
+The panel registers the ranked search tool natively. There is no separate
+MCP client, DSH patch, or `--patch` flag to add.
+
 **From the CLI:**
 
 ```bash
 dsh plugin --profile web add "github:codeadeel/dsh-browser#path:panel"
 ```
+
+For a local dev link, run `pnpm install` in the repo first so the panel's
+`ws` dependency resolves.
 
 ```mermaid
 flowchart LR
@@ -131,7 +135,7 @@ result, and summarize it"* — and watch it happen in the panel.
 
 ```mermaid
 flowchart LR
-  A["mcp__search__web_search"] --> G["gateway /mcp"]
+  A["mcp__search__web_search"] --> G["gateway /search"]
   G --> C{"ranked chain"}
   C -->|"first hit wins"| R["results"]
   C -->|"brave 422 / idle?"| F["falls to gemini → … → duckduckgo"]
@@ -189,6 +193,7 @@ docker-compose.yml + Dockerfile    the whole backend, one command
 
 </details>
 
-Docs: [`docs/walkthrough.md`](docs/walkthrough.md) — the 10-minute tour.
+Docs: [`docs/install.md`](docs/install.md) — the full first-run guide.
+[`docs/walkthrough.md`](docs/walkthrough.md) — the 10-minute tour.
 Architecture for contributors: [`docs/architecture.md`](docs/architecture.md).
 MIT license.

@@ -30,11 +30,11 @@ docker compose up -d --build
 # DSH with the panel plugin (installed once per profile):
 #   UI: Plugins → Add plugin → paste the address into the package field
 #       (keep Registry on the default; `github:codeadeel/dsh-browser#path:panel`)
-#   dev checkout: dsh plugin --profile web add link:/path/to/dsh-browser/panel
+#   The panel registers the ranked search tool natively; no --patch is needed.
+#   dev checkout: (cd /path/to/dsh-browser && pnpm install)
+#                 dsh plugin --profile web add link:/path/to/dsh-browser/panel
 dsh plugin --profile web add "github:codeadeel/dsh-browser#path:panel"
-DSH_ORIGIN=http://127.0.0.1:3000 DSH_PORT=3000 \
-dsh --profile web --patch config/dsh-search.patch.yml \
-  --no-open --host 127.0.0.1 --port 3000
+dsh --profile web --no-open --host 127.0.0.1 --port 3000
 ```
 
 Expected: DSH prints a one-time URL ending in `?token=…`. Open it; the cookie

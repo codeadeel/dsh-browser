@@ -95,9 +95,7 @@ ENV DSH_HOST=0.0.0.0 \
     DSH_PORT=3090 \
     DSH_PROFILE=web \
     DSH_HOME=/dsh-home \
-    DSH_BROWSER_API_URL=http://browser:8790 \
-    DSH_BROWSER_VIEWER_URL=http://browser:8791 \
-    DSH_SEARCH_URL=http://search-gateway:8787
+    DSH_BROWSER_GATEWAY_URL=http://search-gateway:8787
 EXPOSE 3090
 VOLUME ["/dsh-home"]
 ENTRYPOINT ["/usr/local/bin/dsh-entrypoint"]

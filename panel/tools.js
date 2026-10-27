@@ -227,6 +227,60 @@ const OUTPUT_SCHEMA = {
   },
 }
 
+/**
+ * Register the ranked search tool. It is a native DSH tool, so the panel is
+ * fully usable after a UI install: no MCP client entry, self-origin URL, or
+ * --patch is required. The gateway URL is read lazily from the plugin setting.
+ */
+export function registerSearchTool(ctx, gatewayUrl) {
+  const tools = ctx.get('tools')
+  if (!tools) return []
+  const base = typeof gatewayUrl === 'function' ? gatewayUrl : () => gatewayUrl
+  return [tools.register({
+    name: 'mcp__search__web_search',
+    description:
+      'Search the web through the ranked dsh-browser gateway (SearXNG, Google CSE, Gemini, Brave, Vertex, DuckDuckGo). Use this for web search instead of the provider-level web_search tool.',
+    parameters: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Search query' },
+      },
+      required: ['query'],
+    },
+    timeoutMs: 60000,
+    output: {
+      schema: OUTPUT_SCHEMA,
+      render: (_args, value) => [
+        { type: 'text', text: typeof value?.content === 'string' ? value.content : '' },
+      ],
+    },
+    async execute(args, exec) {
+      const query = typeof args?.query === 'string' ? args.query.trim() : ''
+      if (query === '') throw new Error('query is required')
+      let response
+      try {
+        response = await fetch(`${base()}/search`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ query }),
+          signal: exec?.signal,
+        })
+      } catch (error) {
+        const aborted = error instanceof Error && error.name === 'AbortError'
+        throw new Error(aborted ? 'search was cancelled' : `search gateway unreachable: ${error instanceof Error ? error.message : String(error)}`)
+      }
+      const body = await response.json().catch(() => ({}))
+      if (!response.ok || body?.ok !== true) {
+        throw new Error(typeof body?.error === 'string' && body.error !== '' ? body.error : `search gateway error ${response.status}`)
+      }
+      return {
+        ok: true,
+        content: JSON.stringify({ provider: body.provider, results: body.results }, null, 2),
+      }
+    },
+  })]
+}
+
 export function registerBrowserTools(ctx, browserApiUrl) {
   const apiBase = typeof browserApiUrl === 'function' ? browserApiUrl : () => browserApiUrl
   const tools = ctx.get('tools')

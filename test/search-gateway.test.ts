@@ -106,6 +106,14 @@ describe('unified search gateway', () => {
         }).then(response => response.json())
         expect(tested.ok).toBe(true)
         expect(tested.provider).toBe('searxng')
+
+        const searched = await fetch(`${handle.url}/search`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ query: 'example' }),
+        }).then(response => response.json())
+        expect(searched.ok).toBe(true)
+        expect(searched.provider).toBe('searxng')
       } finally {
         vi.unstubAllGlobals()
       }

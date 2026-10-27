@@ -56,11 +56,11 @@ export async function handleSearchConfigRequest(
       json(res, 200, updated)
       return true
     }
-    if (req.method === 'POST' && url.pathname === '/test') {
+    if (req.method === 'POST' && (url.pathname === '/test' || url.pathname === '/search')) {
       const body = await readJsonBody(req)
       const query = typeof body === 'object' && body !== null && typeof (body as { query?: unknown }).query === 'string'
         ? (body as { query: string }).query
-        : 'DeepSeek Harness'
+        : url.pathname === '/test' ? 'DeepSeek Harness' : ''
       try {
         const result = await runSearch(query, store.get())
         json(res, 200, {

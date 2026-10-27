@@ -14,7 +14,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { forward, readBody } from './proxy.js'
-import { BROWSER_SESSION_ID, registerBrowserTools } from './tools.js'
+import { BROWSER_SESSION_ID, registerBrowserTools, registerSearchTool } from './tools.js'
 import { installWorkspaceSessionCleanup } from './workspace-cleanup.js'
 
 export const inject = ['webServer', 'connection', 'tools', 'systemPrompt']
@@ -276,7 +276,10 @@ export function apply(ctx) {
     })
   }
 
-  const toolDisposers = registerBrowserTools(ctx, () => browserApiUrl)
+  const toolDisposers = [
+    ...registerBrowserTools(ctx, () => browserApiUrl),
+    ...registerSearchTool(ctx, () => gatewayUrl),
+  ]
   if (toolDisposers.length > 0) {
     ctx.effect(() => () => {
       for (const dispose of toolDisposers) dispose()

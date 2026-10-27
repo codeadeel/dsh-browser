@@ -31,7 +31,7 @@ surface; its host plugin proxies `/dsh-browser/*` to the gateway.
 - One HTTP/WS port, path-prefixed:
   - `/browser/*` → browser service (`:8790`)
   - `/viewer/*` → viewer (`:8791`), including SSE and WebSocket input
-  - `/mcp`, `/config`, `/test`, `/health` → search
+  - `/search`, `/mcp`, `/config`, `/test`, `/health` → search
 - Passes HTTP methods and bodies through, streams SSE, and upgrades the
   viewer WebSocket.
 - Stateless MCP search exposing `web_search`.
@@ -58,12 +58,14 @@ surface; its host plugin proxies `/dsh-browser/*` to the gateway.
 
 ### DSH
 
-- Connects to the search gateway as a generic MCP client.
+- Uses the panel’s native ranked-search tool; the gateway still exposes `/mcp`
+  for other MCP clients.
 - Loads `dsh-browser-panel`, whose host half registers the native `browser_*`
-  tools and proxies `/dsh-browser/*` to the gateway. The normal configuration
-  is the plugin's **Stack gateway address** field; it derives `/browser`,
-  `/viewer`, and search at the root. `DSH_BROWSER_GATEWAY_URL` is only a
-  first-run seed for preconfigured/headless deployments.
+  tools, proxies `/dsh-browser/*` to the gateway, and registers the search MCP
+  client from its own bundle patch. The normal configuration is the plugin's
+  **Stack gateway address** field; it derives `/browser`, `/viewer`, and
+  search at the root. `DSH_BROWSER_GATEWAY_URL` is only a first-run seed for
+  preconfigured/headless deployments.
 - Contains no Chromium code; can be upgraded independently.
 
 ## Session lifecycle

@@ -97,15 +97,12 @@ services:
       DSH_HOME: /dsh-home
       DSH_PUBLIC_URL: ${DSH_PUBLIC_URL:-http://localhost:3000/}
       DSH_TRUSTED_HOST: ${DSH_TRUSTED_HOST:-localhost}
-      DSH_BROWSER_API_URL: http://search-gateway:8787/browser
-      DSH_BROWSER_VIEWER_URL: http://search-gateway:8787/viewer
-      DSH_SEARCH_URL: http://search-gateway:8787
+      DSH_BROWSER_GATEWAY_URL: http://search-gateway:8787
     ports:
       - "${DSH_PORT:-3000}:3000"
     volumes:
       - dsh-home:/dsh-home
       - ./config/dsh-home.patch.yml:/dsh-home/cordis.patch.yml:ro
-      - ./config/dsh-search.patch.yml:/dsh-home/profiles/web/dsh-search.patch.yml:ro
     depends_on:
       - browser
       - search-gateway

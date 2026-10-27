@@ -461,7 +461,7 @@ function SearchSettings() {
       ),
       h('span', {
         style: { color: 'var(--dsw-alias-label-tertiary)', fontSize: 11 },
-      }, stackStatus || 'One address for browser, viewer, and search. Example: https://search.codeadeel.com.'),
+      }, stackStatus || 'Enter one URL. Use http://127.0.0.1:8787 when the backend is on this host; otherwise use its reachable gateway URL.'),
     ),
     ...order.map((id, index) => {
       const row = SEARCH_PROVIDER_ROWS.find(entry => entry.id === id)
