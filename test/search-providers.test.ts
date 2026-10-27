@@ -8,6 +8,8 @@ import {
   parseGoogleVertexJson,
   parseSearxngJson,
   runSearch,
+  searchBrave,
+  searchGoogleGemini,
   SearchBlockedError,
   unwrapDuckDuckGoUrl,
   type SearchRunResult,
@@ -239,6 +241,53 @@ describe('search provider chain', () => {
     expect(result.results).toHaveLength(2)
     expect(result.attempts[0]).toMatchObject({ provider: 'duckduckgo', ok: true, count: 2 })
     vi.unstubAllGlobals()
+  })
+
+  it('uses the Gemini key saved in the UI for the Gemini API', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      expect(url).toContain('generativelanguage.googleapis.com')
+      expect(url).toContain('key=ui-gemini-key')
+      return new Response(JSON.stringify({
+        candidates: [{
+          content: {
+            parts: [{ text: '[{"title":"UI Gemini","url":"https://gemini.example/","snippet":"ui key"}]' }],
+          },
+        }],
+      }), { status: 200, headers: { 'content-type': 'application/json' } })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    try {
+      const results = await searchGoogleGemini('example', {
+        ...config,
+        googleGeminiApiKey: 'ui-gemini-key',
+      }, 8)
+      expect(results[0]).toMatchObject({ title: 'UI Gemini', url: 'https://gemini.example/', provider: 'google-gemini' })
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('uses Brave REST when a UI key is saved even if an MCP URL is configured', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      expect(String(input)).toContain('api.search.brave.com')
+      return new Response(JSON.stringify({
+        web: { results: [{ title: 'UI Brave', url: 'https://brave.example/', description: 'ui key' }] },
+      }), { status: 200, headers: { 'content-type': 'application/json' } })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    try {
+      const results = await searchBrave('example', {
+        ...config,
+        braveApiKey: 'ui-brave-key',
+        braveMcpUrl: 'http://127.0.0.1:1/mcp',
+      }, 8)
+      expect(results[0]).toMatchObject({ title: 'UI Brave', url: 'https://brave.example/', provider: 'brave' })
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 
   it('uses Google Programmable Search when configured', async () => {

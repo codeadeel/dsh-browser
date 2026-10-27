@@ -230,7 +230,12 @@ export async function searchGoogleGemini(query: string, config: SearchConfig, li
 }
 
 export async function searchBrave(query: string, config: SearchConfig, limit: number): Promise<SearchResult[]> {
-  if (config.braveMcpUrl) return searchBraveViaMcp(query, config, limit)
+  // A key saved in the plugin UI is authoritative and works immediately over
+  // Brave's REST API. The stack's brave-mcp container only sees its startup
+  // BRAVE_API_KEY env, so use the MCP lane only when no UI key is saved.
+  if (config.braveApiKey === '' && config.braveMcpUrl) {
+    return searchBraveViaMcp(query, config, limit)
+  }
   if (config.braveApiKey === '') {
     throw new SearchProviderError('Brave Search key is not configured')
   }

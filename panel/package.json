@@ -1,6 +1,6 @@
 {
   "name": "dsh-browser-panel",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "type": "module",
   "description": "Live browser panel for DeepSeek Harness: shared per-session Chromium with a CDP screencast, ranked search providers, and a single-port search gateway bridge",
   "license": "MIT",

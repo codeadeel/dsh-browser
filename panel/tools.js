@@ -121,7 +121,7 @@ const TOOL_DEFS = [
   },
   {
     name: 'browser_screenshot',
-    description: 'Capture a PNG screenshot of the active page. Returns the saved file path and size.',
+    description: 'Capture a PNG screenshot of the active page and return it as an image attachment.',
     parameters: {
       type: 'object',
       properties: {
@@ -219,9 +219,21 @@ const OUTPUT_SCHEMA = {
     error: { type: 'string' },
     image: {
       type: 'object',
+      additionalProperties: false,
       properties: {
-        data: { type: 'string' },
-        mimeType: { type: 'string' },
+        attachmentId: { type: 'string' },
+        mediaType: { type: 'string' },
+        bytes: { type: 'number' },
+        width: { type: 'number' },
+        height: { type: 'number' },
+        name: { type: 'string' },
+        originalDimensions: {
+          type: 'object',
+          properties: {
+            width: { type: 'number' },
+            height: { type: 'number' },
+          },
+        },
       },
     },
   },
@@ -296,8 +308,8 @@ export function registerBrowserTools(ctx, browserApiUrl) {
         schema: OUTPUT_SCHEMA,
         render: (_args, value) => [
           { type: 'text', text: typeof value?.content === 'string' ? value.content : '' },
-          ...(value?.image?.data
-            ? [{ type: 'image', data: value.image.data, mimeType: value.image.mimeType || 'image/png' }]
+          ...(value?.image?.attachmentId
+            ? [{ type: 'image', attachment: value.image }]
             : []),
         ],
       },
@@ -325,9 +337,21 @@ export function registerBrowserTools(ctx, browserApiUrl) {
         if (body?.ok !== true) {
           throw new Error(typeof body?.error === 'string' && body.error !== '' ? body.error : 'browser tool failed')
         }
-        const image = def.name === 'browser_screenshot' && typeof body?.structured?.base64 === 'string'
-          ? { data: body.structured.base64, mimeType: body.structured.mime ?? 'image/png' }
-          : undefined
+        let image
+        if (def.name === 'browser_screenshot' && typeof body?.structured?.base64 === 'string') {
+          const attachments = ctx.get('attachments')
+          if (attachments) {
+            try {
+              image = await attachments.saveImage({
+                data: Buffer.from(body.structured.base64, 'base64'),
+                mediaType: body.structured.mime ?? 'image/png',
+                name: `browser-${sessionId}.png`,
+              })
+            } catch (error) {
+              throw new Error(`screenshot attachment failed: ${error instanceof Error ? error.message : String(error)}`)
+            }
+          }
+        }
         return {
           ok: true,
           content: def.name === 'browser_screenshot' ? 'Screenshot captured.' : (typeof body?.content === 'string' ? body.content : ''),

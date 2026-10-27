@@ -141,8 +141,8 @@ flowchart LR
   C -->|"brave 422 / idle?"| F["falls to gemini → … → duckduckgo"]
 ```
 
-- Gemini = whole-web Google grounding, AI Studio key, billing required.
-- Brave = official Brave MCP service in compose; REST fallback with a key.
+- Gemini = whole-web Google grounding, AI Studio key, billing required. Move Gemini above earlier providers to force it; the first provider that answers wins.
+- Brave = a UI key uses Brave REST immediately. The optional brave-mcp service uses `BRAVE_API_KEY` from the stack `.env` at startup.
 - SearXNG = free, self-hosted, no key. Vertex = site-scoped app search.
 - One gateway address for everything, set in the plugin page: search at the
   root, browser at `/browser`, viewer at `/viewer`. `DSH_BROWSER_GATEWAY_URL`
@@ -193,7 +193,7 @@ docker-compose.yml + Dockerfile    the whole backend, one command
 
 </details>
 
-Docs: [`docs/install.md`](docs/install.md) — the full first-run guide.
+Docs: [`docs/README.md`](docs/README.md) — the full first-run guide.
 [`docs/walkthrough.md`](docs/walkthrough.md) — the 10-minute tour.
 Architecture for contributors: [`docs/architecture.md`](docs/architecture.md).
 MIT license.

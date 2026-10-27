@@ -391,12 +391,16 @@ function SearchSettings() {
           style: inputStyle,
         })),
         keys.gemini?.has ? h('button', { type: 'button', onClick: () => clearKey('clearGoogleGeminiKey'), style: secondaryButton }, 'Clear key') : null,
+        h('span', { style: { color: 'var(--dsw-alias-label-tertiary)', fontSize: 11, lineHeight: 1.4 } },
+          'This key is used directly against the Gemini API. Move Gemini to the top of the provider order to force it; the first provider that returns results wins.'),
       ]
     }
     if (row.id === 'brave') {
       return [
         field('Subscription token', keyField('braveApiKey', form.braveApiKey, 'paste Brave subscription token', keys.brave?.has)),
         keys.brave?.has ? h('button', { type: 'button', onClick: () => clearKey('clearBraveKey'), style: secondaryButton }, 'Clear key') : null,
+        h('span', { style: { color: 'var(--dsw-alias-label-tertiary)', fontSize: 11, lineHeight: 1.4 } },
+          'A UI key uses Brave REST immediately. For the compose brave-mcp service, set BRAVE_API_KEY in the stack .env before docker compose up, then restart brave-mcp.'),
       ]
     }
     if (row.id === 'google-vertex') {
@@ -423,7 +427,10 @@ function SearchSettings() {
   const rowStatus = (row) => {
     if (row.id === 'searxng') return form.searxngUrl.trim() === '' ? 'needs URL' : 'ready'
     if (row.id === 'duckduckgo') return 'always on'
-    if (row.id === 'brave' && keys.brave?.mcp) return 'mcp service'
+    if (row.id === 'brave') {
+      if (keys.brave?.has) return `key ${keys.brave.preview} · REST`
+      if (keys.brave?.mcp) return 'mcp service · stack key'
+    }
     const keyed = { 'google-cse': keys.cse, 'google-gemini': keys.gemini, brave: keys.brave, 'google-vertex': keys.vertex }[row.id]
     return keyed?.has ? `key ${keyed.preview}` : 'needs key'
   }

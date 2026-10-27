@@ -86,7 +86,7 @@ In the DSH UI:
    ```
 4. Leave **Registry** on the default npm registry
 5. **Install**
-6. Wait for **0.1.4**
+6. Wait for **0.1.5**
 7. **Enable now**
 
 The panel registers the ranked search tool natively. There is no separate
@@ -138,6 +138,21 @@ host only needs network access to this gateway URL.
 
 Set your provider order and optional API keys on the same page, then run
 **Test search**. Expected provider: `searxng` with results.
+
+For Gemini, the UI key is used directly against the Gemini API. Move Gemini
+above SearXNG/CSE in the provider order to force it; the first provider that
+returns results wins. If Gemini fails (key/billing/model), the gateway can fall
+through to the next provider; **Test search** shows the attempts.
+
+For Brave specifically:
+
+- A key saved in the UI uses Brave's REST API immediately.
+- The optional compose `brave-mcp` service uses `BRAVE_API_KEY` from the
+  stack `.env` at container startup. Set it before `docker compose up`, or
+  restart `brave-mcp` after adding it.
+- Clear the UI key if you want the gateway to use the MCP lane.
+- Move Brave to the top of the provider order if you want to force it; the
+  first provider that returns results wins.
 
 ## 6. Use it
 
